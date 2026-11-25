@@ -2,30 +2,44 @@ package com.lostfound.lostfound_backend;
 
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/items")
+@RequestMapping("/api")
 @RequiredArgsConstructor
 public class ItemController {
 
     private final ItemRepository repo;
+    private final UserRepository users;
 
-    @PostMapping
-    public Item create(@RequestBody Item item) {
-        return repo.save(item);
+    @PostMapping("/items")
+    public ResponseEntity<?> create(@RequestBody Item item, Authentication auth) {
+        var me = users.findByEmail(auth.getName());
+        if (me.isEmpty()) {
+            return ResponseEntity.status(401).body("User not found");
+        }
+        item.setId(null);
+        item.setStatus("OPEN");
+        item.setReporterId(me.get().getId());
+        return ResponseEntity.ok(repo.save(item));
     }
 
-    @GetMapping
+    @GetMapping("/items")
     public List<Item> list(@RequestParam(required = false) String type) {
         if (type == null) {
             return repo.findAll();
         }
         return repo.findByType(type.toUpperCase());
+    }
+
+    @GetMapping("/my/items")
+    public ResponseEntity<?> mine(Authentication auth) {
+        var me = users.findByEmail(auth.getName());
+        if (me.isEmpty()) {
+            return ResponseEntity.status(401).body("User not found");
+        }
+        return ResponseEntity.ok(repo.findByReporterIdOrderByIdDesc(me.get().getId()));
     }
 }
